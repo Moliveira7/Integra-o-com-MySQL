@@ -1,0 +1,288 @@
+Crie um programa que permita gerenciar os dados de máquinas de uma fábrica (código, descrição e ano de aquisição). O sistema deve possuir as seguintes funcionalidades:
+
+- Inserir uma máquina
+- Remover uma máquina
+- Listar as máquinas ordenadas por ano de aquisição
+- Relatório das máquinas de um ano de interesse
+- Armazenamento de forma persistente, de maneira que as informações não sejam perdidas entre execuções do programa.
+
+Observações: A persistência pode ser implementada tanto fazendo uso de arquivos como fazendo uso do Mysql. Caso se utilize o Mysql, criar a tabela maquina na base (schema) monitoramento fazendo uso do seguinte comando:
+
+*****  DETALHE : AO RODAR O CÓDIGO NECESSITA 
+         DA BIBLIOTECA “  MySQL Connector C 6.1 ”
+	  ONDE ESSA PASTA DEVE ESTAR JUNTO 
+         AO LOCAL QUE SALVA OS CÓDIGOS E AO 
+         COPILAR AS OPÇÕES DEVEM SER:
+	  Project build options
+    		Linker settings = libmysql
+	      Search directories
+ 		 Compiler = ..\MySQL Connector C 6.1\include
+                Linker     = ..\MySQL Connector C 6.1\lib
+
+*****
+	
+
+
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <locale.h>
+// INCLUSÃO DA INTERFACE DA BIBLIOTECA COM O " MYSQL "
+#include <my_global.h>
+#include <mysql.h>
+#define TRUE 1
+#define FALSE 0
+// Ponteiro para estrutura que contém informações sobre a conexão com o bando de dados
+MYSQL *conexao = NULL; // Inicialmente começa vazio
+
+// Função para INTERAGIR com o banco de dados do " MYSQL "
+int conectarBanco()
+{
+// inicializa a biblioteca do mysql
+    conexao = mysql_init(NULL);
+    if (conexao == NULL) // Se não conseguir carregar a biblioteca
+    {
+        printf("Erro ao carregar e iniciar a biblioteca do mysql. %s\n", mysql_error(conexao));
+        return FALSE;
+    }
+
+    // Se conseguiu carregar a biblioteca,
+    // ja conecta com o WORKBENCH com o USUARIO e SENHA em MÃO,
+    // Acessando o local " localhost " usuario = root, senha = root
+    // Nesse caso estamos acessando o " SCHEMAS chamado MONITORAMENTO "
+    if (mysql_real_connect(conexao, "localhost", "root", "root", "monitoramento", 0, NULL, 0) == NULL)
+    {
+        printf("Erro de conexão com o banco. %s\n", mysql_error(conexao));
+        return FALSE; // Que foi definido como FALSE = 0
+    }
+// sucesso
+    return TRUE; // Que foi definido como TRUE = 1
+}
+
+// Cadastramento das maquinas
+void inserirMaquina()
+{
+    // Declaração das possiveis variáveis
+    int codigo;
+    int anoDeCompra;
+    char descricao[40];
+
+
+    // Lendo do usuario os Dados
+    printf("INFORME O CODIGO DA MAQUINA: \n");
+    scanf("%d", &codigo);
+
+    printf("DESCRICAO DA MAQUINA: \n");
+    scanf("%s", &descricao);
+
+    printf("INFORME O ANO DE COMPRA: \n");
+    scanf("%d", &anoDeCompra);
+
+
+// construindo o comando de inserção
+    char comando_insercao[255];
+    sprintf(comando_insercao, "insert into maquina values (%d, '%s', %d)",
+            codigo, descricao,anoDeCompra);
+    // Se a conexão e comando for DIFERENTE de ZERO
+    if (mysql_query(conexao, comando_insercao) != 0)
+    {
+        // Mensagem de Erro
+        printf("erro na inserção.\n");
+        printf("%s\n", mysql_error(conexao));
+    }
+}
+
+// Função para excluir o sensor pelo CÓDIGO
+void excluirMaquina()
+{
+    // Variavel logico
+    int codigo;
+
+    // Lendo do usuario o Dados
+    printf("INFORME O CODIGO DA MAQUINA QUE DESEJA EXCLUIR: \n");
+    scanf("%d", &codigo);
+
+// construindo o comando PARA EXCLUIR
+    char comando_exclusao[255];
+
+    // ' sprintf ' é uma função parecida com o printf,
+    //  porem não joga a 'string(texto)' na tela e sim para outra variavel string
+    sprintf(comando_exclusao, "delete from maquina where codigo = %d ", codigo);
+    int erro = mysql_query(conexao,comando_exclusao);
+    // Se a conexão e comando for DIFERENTE de ZERO
+    // mysql_query é um executar
+    if (mysql_query(conexao, comando_exclusao) != 0)
+    {
+        // Mensagem de Erro
+        printf("erro na exlusao.\n");
+        printf("%s\n", mysql_error(conexao));
+    }
+    else
+    {
+        printf("A exclusão foi realizada com sucesso.\n");
+    }
+}
+
+
+// Função para Relatorio Geral das maquinas ordenados
+void relatorioGeral()
+{
+// consultando a base
+// A ordenação no mysql esta sendo com o proprio comando do mysql
+    if (mysql_query(conexao, "SELECT codigo,descricao,ano FROM maquina ORDER BY ano ASC;"))
+    {
+        // Da o erro na consulta
+        printf("Erro na consulta.\n");
+        printf("%s\n", mysql_error(conexao));
+        return;
+    }
+    // Recebendo os dados cadastrados
+    MYSQL_RES *registros = mysql_store_result(conexao);
+    int num_registros = mysql_num_rows(registros);
+
+    // Para casos de ESTOQUES ZERADOS
+    if (num_registros == 0)
+    {
+        printf("nenhum registro encontrado");
+        return;
+    }
+
+    MYSQL_ROW registro_corrente;
+
+
+
+
+    int i;
+    // Varredura dos itens cadastrados
+    for (i = 0; i < num_registros; i++)
+    {
+
+        registro_corrente = mysql_fetch_row(registros);
+        printf("CÓDIGO: %s \n", registro_corrente[0]);
+        printf("DESCRIÇÃO: %s \n", registro_corrente[1]);
+        printf("ANO DE COMPRA: %s \n", registro_corrente[2]);
+
+        printf("-----------------------------------------------\n");
+
+
+    }
+
+
+
+// limpa memória
+    mysql_free_result(registros);
+}
+
+// Função para Relatoio Especifico
+void relatorioEspecifico()
+{
+    int anoDeInteresse; // De acordo com a solicitação do exercicio
+    char comando_insercao[255];
+
+    printf("INFORME O ANO DE COMPRA DA MAQUINA:\n");
+    scanf("%d", &anoDeInteresse);
+
+    // Codigo para comparar la no Mysql com o ano de interesse
+    sprintf(comando_insercao, "SELECT * FROM maquina WHERE ano=%d", anoDeInteresse);
+
+
+    if (mysql_query(conexao, comando_insercao))
+    {
+        printf("Erro");
+    }
+    // Recebendo os dados cadastrados
+    MYSQL_RES *registros = mysql_store_result(conexao);
+
+    int num_registros = mysql_num_rows(registros);
+
+    // Para casos de ESTOQUES ZERADOS
+    if (num_registros == 0)
+    {
+        printf("nenhum registro encontrado");
+        return;
+    }
+
+    MYSQL_ROW registro_corrente;
+
+    int i;
+    // Varredura dos itens cadastrados
+    for (i = 0; i < num_registros; i++)
+    {
+        registro_corrente = mysql_fetch_row(registros);
+        printf("CÓDIGO: %s \n", registro_corrente[0]);
+        printf("DESCRIÇÃO: %s \n", registro_corrente[1]);
+        printf("ANO DE COMPRA: %s \n", registro_corrente[2]);
+
+        printf("-----------------------------------------------\n");
+    }
+
+// limpa memória
+    mysql_free_result(registros);
+}
+
+
+// Função para desconectar do banco de dados
+int desconectarBanco()
+{
+// encerra conexão
+    if (conexao != NULL) // caso conexão esteja no final
+    {
+        mysql_close(conexao);
+        return TRUE; // TRUE = 1
+    }
+    return FALSE; // FALSE = 0
+}
+
+
+
+
+
+// Agora sim na função principal
+void main()
+{
+    setlocale(LC_CTYPE, "portuguese");
+    if (conectarBanco() == FALSE)
+    {
+        printf("Falha ao conectar com o mysql.\n");
+        return;
+    }
+
+    int opcao = -1;
+
+    // Criação do menu la no MYSQL
+    while (opcao != 0)
+    {
+        printf("INFORME A OPÇÃO DESEJADA: \n\n");
+        printf("1 - INSERIR UMA NOVA MAQUINA \n");
+        printf("2 - EXCLUIR UMA MAQUINA \n");
+        printf("3 - RELATORIO GERAL POR ANO DE COMPRA(DO MAIS NOVO PARA O MAIS VELHO)\n");
+        printf("4 - RELATORIO ESPECIFICO DE DETERMINADO ANO \n");
+        printf("0 - Sair \n");
+        scanf("%d", &opcao);
+        switch (opcao)
+        {
+        case 1: // CADASTRAR UM NOVA MAQUINA
+            inserirMaquina(); // Chamada da função
+            break;
+
+        case 2: // EXCLUIR
+            excluirMaquina();
+            break;
+
+        case 3: // RELATORIO GERAL
+            relatorioGeral();
+            break;
+
+        case 4: // RELATORIO DE UM ANO ESPECIFICO
+            relatorioEspecifico();
+            break;
+
+
+        }
+        system("pause");
+        system("cls");
+    }
+
+    desconectarBanco();
+}
